@@ -671,8 +671,12 @@ class RoomServer(GameHost):
         return matches[0].index if len(matches) == 1 else None
 
     def _vacated_seat(self) -> Optional[int]:
-        left = self._left_seats()
-        return left[0].index if left else None
+        """A person's seat a bot is playing right now: filled at start (nobody came, or a rematch began
+        while the player was away) or left mid-game. Seats the host gave to bots stay bots."""
+        fillers = [s for s in self._seats[1:self.humans] if s.kind == "bot" and s.client is None]
+        fresh = [s for s in fillers if not s.was_name]     # keep left seats free for their owners if we can
+        pick = fresh or fillers
+        return pick[0].index if pick else None
 
     def _find_live_player(self, name: str, rejoin: Optional[str], newcomer: _Conn) -> Optional[_Conn]:
         """A seated, non-host connection that is this same player (rejoin key, or exact name)."""
@@ -689,6 +693,7 @@ class RoomServer(GameHost):
         logic = self.logic
         seat = self._seats[idx]
         old = seat.was_name or seat.name or "Player"
+        was_left = bool(seat.was_name)
         if same_player:
             name = old
         else:
@@ -704,7 +709,12 @@ class RoomServer(GameHost):
                           "key": seat.key})
         self._send(conn, self._begin_msg(idx))
         self._broadcast({"t": P.SEATS, "seats": self._public_seats()}, exclude=conn)
-        notice = ("%s is back" % name) if same_player else ("%s took over the seat %s left" % (name, old))
+        if same_player:
+            notice = "%s is back" % name
+        elif was_left:
+            notice = "%s took over the seat %s left" % (name, old)
+        else:
+            notice = "%s joined and replaced %s" % (name, old)
         self._broadcast({"t": P.NOTICE, "msg": notice}, exclude=conn)
         self._game_call(None, lambda: logic.on_seat_changed(idx))
         self._game_call(None, self.push_state)

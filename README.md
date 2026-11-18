@@ -40,8 +40,9 @@ Linux: if tkinter is missing, install it with `sudo apt install python3-tk`.
 If someone's Wi-Fi drops or they close the app, a bot keeps their seat warm. Join the same room
 again (Nearby games or the same IP) and you get your seat back with your pieces where they are
 now: your app remembers a secret seat key, so this works even with a different name, after
-restarting the app, or before the host has noticed you dropped. A new friend joining mid-game
-takes over any seat a player left.
+restarting the app, before the host has noticed you dropped, or after the host started a rematch
+without you. A friend who arrives mid-game takes a seat a bot is playing for a person (seats the
+host gave to bots stay bots).
 
 ## Staying low-key
 

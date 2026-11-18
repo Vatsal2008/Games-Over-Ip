@@ -805,11 +805,13 @@ class PlayTests(NetCase):
         self.assertEqual([s["bot"] for s in seats], [False, True, True])
         self.assertTrue(all(s["name"].startswith("Bot ") for s in seats[1:]))
         self.assertEqual(len({s["name"] for s in seats}), 3)
-        joiner = Client(LOCAL, srv.address[1], "Ravi")
-        self._clients.append(joiner)
-        with self.assertRaises(RejectedError) as cm:
-            joiner.connect(timeout=WAIT)
-        self.assertEqual(cm.exception.reason, "A game is running. Try again when it ends.")
+        # a late friend replaces the first bot that is sitting in a person's seat
+        late, lin = self.client(srv, "Ravi")
+        begin = lin.wait("begin")
+        self.assertEqual(begin["seat"], 1)
+        self.assertFalse(begin["seats"][1]["bot"])
+        self.assertEqual(begin["seats"][1]["name"], "Ravi")
+        self.assertIn("replaced", hin.wait("notice")["msg"])
 
     def test_act_event_comes_before_state(self) -> None:
         srv, host, hin, guest, gin = self.room_with_two(options={"target": 40})

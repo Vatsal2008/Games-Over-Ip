@@ -134,8 +134,10 @@ single `{"t": "_disconnected", "reason": ..., "bye": true}` for that connection 
   name without a duplicate suffix ("TestAri" matches a seat left as "TestAri 2"). If that player
   still holds a live seat (the old connection died silently, e.g. a Wi-Fi drop), the stale
   connection is dropped first and the seat is reclaimed at once ("Ravi is back"). Anyone else takes
-  over the first seat a player left ("Meera took over the seat Ravi left"). Only when no left seat
-  exists: reject "A game is running. Try again when it ends."
+  a human seat that a bot is playing: first one filled at start (nobody came, or a rematch began
+  while its player was away; "Meera joined and replaced Bot Mia"), else one a player left ("Meera
+  took over the seat Ravi left"). Seats the host gave to bots (index >= humans) are never handed
+  out. Only when no such seat exists: reject "A game is running. Try again when it ends."
 - Names are cleaned with `protocol.clean_name`; duplicates get " 2", " 3" suffixes.
 - Limits: max 8 sockets, `hello` within 5 s, idle timeout 15 s (no bytes at all), send buffer
   cap 1 MiB per client. Breaking a limit disconnects that client only.
@@ -403,6 +405,8 @@ paint_token(img, main, light, dark, style="pawn"|"disc")   glossy token with sof
   View in a window without the app screens. Lets you play or watch bots play.
 - `tools/e2e_app.py [--theme] [--size] [--game]`: drives the real App through host -> lobby ->
   play -> result and join (bad port, then good) -> lobby -> host closes, saving screenshots.
+- `tools/rejoin_check.py [game]`: two real app processes (same name); the joiner leaves, the bot
+  plays on, the joiner rejoins and must get the same seat with the bot's progress.
 - `tools/click_play.py [games...]`: plays seat 0 of every game with synthetic mouse clicks against a
   real server (idle timer off, so a missed click fails the run).
 - `tests/test_views.py` replays complete recorded games (events + states in wire order) into every

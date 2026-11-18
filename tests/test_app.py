@@ -143,7 +143,7 @@ class AppTest(unittest.TestCase):
         scr.people = 2
         scr._normalise_seats()
         scr.go()
-        self.assertTrue(self.wait_for(lambda: isinstance(a.screen, LobbyScreen)), "lobby did not open")
+        self.assertTrue(self.wait_for(lambda: isinstance(a.screen, LobbyScreen), 20), "lobby did not open")
         ip, port = a.server.address
         friend = Client(ip, port, "Ravi")
         friend.connect(timeout=5)

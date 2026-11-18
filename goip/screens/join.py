@@ -111,13 +111,13 @@ class JoinScreen(Screen):
             self.canvas.tag_bind(tag, "<Enter>", lambda e: self.canvas.configure(cursor="hand2"))
             self.canvas.tag_bind(tag, "<Leave>", lambda e: self.canvas.configure(cursor=""))
             title = "%s  ·  %s" % (room.get("host") or "Host", room.get("game_name") or room.get("game") or "")
-            state = "playing" if room.get("state") == "playing" else "%s joined" % room.get("players", "")
+            state = "in game, tap to join" if room.get("state") == "playing" else "%s joined" % room.get("players", "")
             self.text("room_t%d" % i, x0 + ui.px(14), y + row_h * 0.34, title, 14, bold=True, anchor="w",
                       fit=cw - ui.px(110))
             self.text("room_s%d" % i, x0 + ui.px(14), y + row_h * 0.72, "%s:%s" % (room.get("ip"), room.get("port")),
                       11, fill=th.text_dim, anchor="w", fit=cw - ui.px(110))
             self.text("room_p%d" % i, x0 + cw - ui.px(14), y + row_h / 2, state, 12,
-                      fill=th.accent2 if room.get("state") != "playing" else th.text_faint, anchor="e")
+                      fill=th.accent2, anchor="e")
             y += row_h + ui.px(8)
 
     # --------------------------------------------------------------- connect
