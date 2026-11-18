@@ -129,7 +129,9 @@ single `{"t": "_disconnected", "reason": ..., "bye": true}` for that connection 
   token marks the (single) host client. In lobby: take the first open human seat, else reject
   "Room is full". While playing: if a bot seat has `was_name == name` and its owner is gone,
   the player reclaims it (seat back to human, broadcast `seats` + notice "Asha is back", send them
-  `begin` + `state`); otherwise reject "A game is running. Try again when it ends."
+  `begin` + `state`). If that name still holds a live seat (the old connection died silently, e.g. a
+  Wi-Fi drop), the stale connection is dropped first and the newcomer reclaims the seat at once.
+  Otherwise reject "A game is running. Try again when it ends."
 - Names are cleaned with `protocol.clean_name`; duplicates get " 2", " 3" suffixes.
 - Limits: max 8 sockets, `hello` within 5 s, idle timeout 15 s (no bytes at all), send buffer
   cap 1 MiB per client. Breaking a limit disconnects that client only.
@@ -308,7 +310,7 @@ paint_token(img, main, light, dark, style="pawn"|"disc")   glossy token with sof
   null), `last` (last cell), `phase` ("play" | "round_over"), `timer`, `finished`.
 
 ### Snakes and Ladders (`snakes`)
-- `SEAT_COUNTS = (2, 3, 4)`. Options: `layout` classic / random, `six_again` on (default) / off,
+- `SEAT_COUNTS = (2, 3, 4)`. Options: `layout` random (default: a new board every game) / classic, `six_again` on (default) / off,
   `exact_finish` on (default) / off, `TURN_TIMER` (default 30), `BOT_LEVEL` is not needed.
 - Board 1..100, row-by-row zig-zag starting bottom-left (1 bottom-left, 10 bottom-right,
   11 above 10, … 100 top-left). Tokens start at 0 (off the board, beside square 1).

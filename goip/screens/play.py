@@ -163,7 +163,8 @@ class PlayScreen(Screen):
 
     def _show_overlay(self, title: str, body: str, buttons: Any, celebrate: bool = False) -> None:
         self._close_overlay()
-        self.overlay = Overlay(self.ui, self.vcanvas, title, body, buttons, celebrate=celebrate)
+        self.overlay = Overlay(self.ui, self.vcanvas, title, body, buttons, celebrate=celebrate,
+                               allow_above=(self.vtoaster.tag,))
         self.vtoaster.raise_()
 
     def _close_overlay(self) -> None:

@@ -83,6 +83,56 @@ class AppTest(unittest.TestCase):
         a.root.deiconify()
         self.spin(0.1)
 
+    def test_overlay_stays_above_game_redraws(self) -> None:
+        from goip.screens.base import Overlay
+        a = self.app
+        c = tk.Canvas(a.root, width=300, height=400)
+        c.place(x=0, y=0)
+        self.spin(0.1)
+        ov = Overlay(a.ui, c, "Shared win!", "Asha and Ravi tie!", [("Rematch", "primary", lambda: None)],
+                     allow_above=("toast",))
+        late = c.create_text(150, 200, text="16", tags=("bgo_num",))      # a game redraw lands on top
+        toast = c.create_rectangle(0, 0, 10, 10, tags=("toast",))        # allowed above the card
+        self.spin(0.3)
+        order = c.find_all()
+        top = c.find_withtag(ov.buttons[-1].tag)[-1]
+        self.assertLess(order.index(late), order.index(top), "game item still above the overlay")
+        self.assertGreater(order.index(toast), order.index(top), "toast pushed under the overlay")
+        ov.destroy()
+        c.destroy()
+
+    def test_joiner_leaves_and_rejoins_same_seat(self) -> None:
+        from goip.screens import JoinScreen, PlayScreen
+        from goip.server import RoomServer
+        a = self.app
+        server = RoomServer("127.0.0.1", 0, "Kabir", "ludo", 2, 0, {"turn_timer": 15}, discovery=False)
+        server.start()
+        try:
+            host = Client(*server.address, "Kabir", token=server.host_token)
+            host.connect(timeout=5)
+            self.friends.append(host)
+            a.settings["name"] = "Ravi"
+            a.go_join()
+            scr = a.screen
+            scr.f_ip.value, scr.f_port.value = "127.0.0.1", str(server.address[1])
+            scr.connect()
+            self.assertTrue(self.wait_for(lambda: a.welcome is not None))
+            host.send({"t": "start"})
+            self.assertTrue(self.wait_for(lambda: isinstance(a.screen, PlayScreen)))
+            seat = a.begin["seat"]
+            a.leave()                                         # Ravi closes the game
+            self.spin(0.5)
+            a.go_join()
+            self.assertIsInstance(a.screen, JoinScreen)
+            self.assertEqual(a.screen.f_ip.value, "127.0.0.1", "last host IP not remembered")
+            a.screen.connect()
+            self.assertTrue(self.wait_for(lambda: isinstance(a.screen, PlayScreen)), "rejoin did not resume")
+            self.assertEqual(a.begin["seat"], seat, "rejoined into another seat")
+            self.assertTrue(self.wait_for(lambda: a.screen.view.state is not None))
+            self.assertEqual(a.screen.view.state["tokens"], server.logic.view_for(seat)["tokens"])
+        finally:
+            server.stop()
+
     def test_host_play_and_leave(self) -> None:
         from goip.screens import HostGameScreen, LobbyScreen, MenuScreen, PlayScreen
         a = self.app

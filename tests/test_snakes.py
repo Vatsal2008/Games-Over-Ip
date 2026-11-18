@@ -42,6 +42,7 @@ def advance(host: FakeHost, seconds: float) -> None:
 
 def rigged(rolls: Sequence[int] = (), n: int = 2, humans: int = 2, **options: Any):
     options.setdefault("turn_timer", 0)
+    options.setdefault("layout", "classic")   # rule tests rely on the classic board
     host, game = make_game(Logic, n, humans=humans, options=options, seed=1)
     game.rng = Dice(rolls)
     return host, game
@@ -284,7 +285,7 @@ class MetadataTests(unittest.TestCase):
         self.assertEqual(Logic.NAME, "Snakes & Ladders")
         self.assertLessEqual(len(Logic.TAGLINE), 28)
         self.assertEqual(Logic.SEAT_COUNTS, (2, 3, 4))
-        self.assertEqual(Logic.clean_options({}), {"layout": "classic", "six_again": True,
+        self.assertEqual(Logic.clean_options({}), {"layout": "random", "six_again": True,
                                                    "exact_finish": True, "turn_timer": 30})
         self.assertEqual(Logic.clean_options({"layout": "random", "six_again": False,
                                               "exact_finish": 0, "turn_timer": 15}),

@@ -215,16 +215,47 @@ class Overlay:
     the game canvas so the card sits above the board).
     """
 
+    GUARD_MS = 60
+
     def __init__(self, ui: Any, canvas: tk.Canvas, title: str, body: str,
-                 buttons: List[Tuple[str, str, Callable[[], None]]], celebrate: bool = False) -> None:
+                 buttons: List[Tuple[str, str, Callable[[], None]]], celebrate: bool = False,
+                 allow_above: Tuple[str, ...] = ()) -> None:
         self.ui, self.canvas = ui, canvas
         self.title, self.body, self.celebrate = title, body, celebrate
         self.tag = "overlay%d" % id(self)
+        self.allow_above = tuple(allow_above)   # tags that may sit above the card (toasts)
         self.panel = widgets.Panel(ui, canvas, radius=20, kind="card")
         self.buttons = [widgets.Button(ui, canvas, text, fn, kind=kind) for text, kind, fn in buttons]
         self._ref: Any = None
         self._celebrated = False
+        self._dead = False
+        self._guard_job: Optional[str] = None
         self.place()
+        self._guard()
+
+    def _top_tag(self) -> str:
+        return self.buttons[-1].tag if self.buttons else self.tag + "txt"
+
+    def _allowed(self, item: int) -> bool:
+        tags = self.canvas.gettags(item)
+        return any(t.startswith(("goipconf", self.tag)) or t in self.allow_above for t in tags)
+
+    def _guard(self) -> None:
+        """Games redraw on their own (hover, timers, animation ends) and may land on top; push them back."""
+        if self._dead:
+            return
+        try:
+            items = self.canvas.find_all()
+            top = self.canvas.find_withtag(self._top_tag())
+            if top:
+                above = items[items.index(top[-1]) + 1:]
+                if any(not self._allowed(i) for i in above):
+                    self.raise_()
+                    for tag in self.allow_above:
+                        self.canvas.tag_raise(tag)
+            self._guard_job = self.canvas.after(self.GUARD_MS, self._guard)
+        except (tk.TclError, ValueError):
+            self._guard_job = None
 
     def place(self) -> None:
         ui, th, c = self.ui, self.ui.theme, self.canvas
@@ -269,6 +300,13 @@ class Overlay:
             b.raise_()
 
     def destroy(self) -> None:
+        self._dead = True
+        if self._guard_job is not None:
+            try:
+                self.canvas.after_cancel(self._guard_job)
+            except tk.TclError:
+                pass
+            self._guard_job = None
         try:
             self.canvas.delete(self.tag)
         except tk.TclError:

@@ -33,12 +33,13 @@ Linux: if tkinter is missing, install it with `sudo apt install python3-tk`.
 | Game | Players | Notes |
 |---|---|---|
 | Tic-Tac-Toe | 2 (or you vs a bot) | Best of 1, 3 or 5; easy, normal or unbeatable bot |
-| Snakes & Ladders | 2–4 | Classic or random board; a 6 rolls again; exact roll to finish |
+| Snakes & Ladders | 2–4 | A new random board every game (classic board optional); a 6 rolls again; exact roll to finish |
 | Ludo | 2–4 | Ludo King rules: 6 to leave base, safe stars, captures give another roll; quick mode needs 2 tokens home |
 | Bingo | 2–4 | Each player gets a secret random 1–25 board; take turns calling numbers; the first to complete 5 lines spells B-I-N-G-O |
 
-If someone's Wi-Fi drops or they close the app, a bot takes over their seat. Rejoin with the same
-name and you get your seat back.
+If someone's Wi-Fi drops or they close the app, a bot takes over their seat. Join again with the
+same name (the Nearby games list or the same IP) and you get your seat back with your pieces where
+they are now — even if the host hasn't noticed you dropped yet.
 
 ## Staying low-key
 

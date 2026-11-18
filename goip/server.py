@@ -603,6 +603,14 @@ class RoomServer(GameHost):
                    and hmac.compare_digest(token.encode("utf-8"), self.host_token.encode("utf-8")))
         if self.state == "playing":
             idx = self._find_reclaim(name)
+            if idx is None and not is_host:
+                # Same player back before we noticed the old connection died (Wi-Fi drop, crash):
+                # retire the stale connection so its seat becomes reclaimable right now.
+                stale = self._find_live_player(name, conn)
+                if stale is not None:
+                    log.info("client %d replaces stale connection %d (%s)", conn.cid, stale.cid, stale.name)
+                    self._drop(stale)
+                    idx = self._find_reclaim(name)
             if idx is None:
                 self._reject(conn, MSG_RUNNING)
             else:
@@ -631,6 +639,15 @@ class RoomServer(GameHost):
         for seat in self._seats:
             if seat.kind == "bot" and seat.client is None and seat.was_name and seat.was_name.casefold() == key:
                 return seat.index
+        return None
+
+    def _find_live_player(self, name: str, newcomer: _Conn) -> Optional[_Conn]:
+        """A seated, non-host connection already playing under this name (case-insensitive)."""
+        key = name.casefold()
+        for other in self._conns.values():
+            if (other is not newcomer and other.ready and not other.dead and not other.is_host
+                    and other.seat is not None and (other.name or "").casefold() == key):
+                return other
         return None
 
     def _reclaim(self, conn: _Conn, idx: int) -> None:
