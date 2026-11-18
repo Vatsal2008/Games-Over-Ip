@@ -10,8 +10,8 @@ You only need Python 3.8+ (from [python.org](https://www.python.org/downloads/);
 on Windows and macOS).
 
 ```bash
-git clone https://github.com/<your-user>/games-over-ip.git
-cd games-over-ip
+git clone https://github.com/Vatsal2008/Games-Over-Ip.git
+cd Games-Over-Ip
 python main.py
 ```
 
