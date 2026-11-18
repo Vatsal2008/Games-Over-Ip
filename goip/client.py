@@ -70,11 +70,13 @@ class Client:
     SILENCE_TIMEOUT = 12.0     # nothing received for this long -> disconnected
     RECV_TIMEOUT = 0.5         # reader wake-up period
 
-    def __init__(self, ip: str, port: int, name: str, token: Optional[str] = None) -> None:
+    def __init__(self, ip: str, port: int, name: str, token: Optional[str] = None,
+                 rejoin: Optional[str] = None) -> None:
         self.ip = ip
         self.port = int(port)
         self.name = name
         self.token = token
+        self.rejoin = rejoin      # secret seat key from an earlier welcome (gets the same seat back)
         self.rtt: Optional[float] = None          # last ping round trip (seconds)
         self._q: "queue.Queue[Dict[str, Any]]" = queue.Queue()
         self._lock = threading.RLock()
@@ -169,6 +171,8 @@ class Client:
             hello: Dict[str, Any] = {"t": P.HELLO, "v": PROTOCOL_VERSION, "app": APP_ID, "name": self.name}
             if self.token:
                 hello["token"] = self.token
+            if self.rejoin:
+                hello["rejoin"] = self.rejoin
             sock.settimeout(_remaining(deadline))
             sock.sendall(P.encode(hello))
             buf = P.LineBuffer()

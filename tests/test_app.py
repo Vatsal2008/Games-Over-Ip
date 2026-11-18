@@ -111,7 +111,7 @@ class AppTest(unittest.TestCase):
             host = Client(*server.address, "Kabir", token=server.host_token)
             host.connect(timeout=5)
             self.friends.append(host)
-            a.settings["name"] = "Ravi"
+            a.settings["name"] = "Kabir"           # same name as the host, like the bug report
             a.go_join()
             scr = a.screen
             scr.f_ip.value, scr.f_port.value = "127.0.0.1", str(server.address[1])

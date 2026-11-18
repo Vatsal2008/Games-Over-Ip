@@ -37,9 +37,11 @@ Linux: if tkinter is missing, install it with `sudo apt install python3-tk`.
 | Ludo | 2–4 | Ludo King rules: 6 to leave base, safe stars, captures give another roll; quick mode needs 2 tokens home |
 | Bingo | 2–4 | Each player gets a secret random 1–25 board; take turns calling numbers; the first to complete 5 lines spells B-I-N-G-O |
 
-If someone's Wi-Fi drops or they close the app, a bot takes over their seat. Join again with the
-same name (the Nearby games list or the same IP) and you get your seat back with your pieces where
-they are now — even if the host hasn't noticed you dropped yet.
+If someone's Wi-Fi drops or they close the app, a bot keeps their seat warm. Join the same room
+again (Nearby games or the same IP) and you get your seat back with your pieces where they are
+now: your app remembers a secret seat key, so this works even with a different name, after
+restarting the app, or before the host has noticed you dropped. A new friend joining mid-game
+takes over any seat a player left.
 
 ## Staying low-key
 

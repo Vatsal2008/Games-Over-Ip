@@ -916,9 +916,6 @@ class PlayTests(NetCase):
         guest.close()
         hin.wait("seats", lambda m: m["seats"][1]["bot"])
         hin.wait("notice")
-        with self.assertRaises(RejectedError) as cm:
-            self.client(srv, "Zed")
-        self.assertEqual(str(cm.exception), "A game is running. Try again when it ends.")
         back, bin_ = self.client(srv, "Ravi")
         self.assertFalse(back.is_host)
         begin = bin_.wait("begin")

@@ -4,7 +4,7 @@ from __future__ import annotations
 import random
 import time
 import unittest
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 from goip import protocol as P
 from goip.client import Client
@@ -86,6 +86,60 @@ class RejoinTest(unittest.TestCase):
         self.assertEqual(mine["pos"], host_view.get("pos", mine["pos"]), "positions differ from the host's")
         gone = drain(friend, P.L_DISCONNECTED, 4)
         self.assertTrue(any(m.get("t") == P.L_DISCONNECTED for m in gone), "stale connection was not closed")
+
+    def _start_with(self, game: str, joiner: str) -> Tuple[Client, Dict[str, Any], List[Dict[str, Any]]]:
+        friend = self.client(joiner)
+        self.host.send({"t": P.START})
+        msgs = drain(friend, P.STATE)
+        begin = [m for m in msgs if m.get("t") == P.BEGIN][0]
+        return friend, begin, msgs
+
+    def _rejoin(self, name: str, rejoin: Optional[str] = None) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
+        c = Client(*self.server.address, name, rejoin=rejoin)  # type: ignore[union-attr]
+        welcome = c.connect(timeout=5)
+        self.clients.append(c)
+        msgs = drain(c, P.STATE)
+        begins = [m for m in msgs if m.get("t") == P.BEGIN]
+        self.assertTrue(begins, "rejoin was refused or got no begin")
+        return dict(welcome, seat=begins[0]["seat"]), msgs
+
+    def test_same_name_as_host_then_rejoin(self) -> None:
+        """The reported bug: host and friend both 'TestAri'; the friend becomes 'TestAri 2', leaves, comes back."""
+        self.server = RoomServer("127.0.0.1", 0, "TestAri", "snakes", 2, 0, {"turn_timer": 15}, discovery=False)
+        self.server.start()
+        self.host = self.client("TestAri", token=self.server.host_token)
+        friend, begin, first = self._start_with("snakes", "TestAri")
+        seat = begin["seat"]
+        self.assertEqual(begin["seats"][seat]["name"], "TestAri 2")
+        friend.close()
+        drain(self.host, P.NOTICE)
+        back, msgs = self._rejoin("TestAri")               # types the plain name again, no key
+        self.assertEqual(back["seat"], seat)
+        self.assertEqual(last_state(msgs)["pos"], self.server.logic.view_for(seat)["pos"])
+
+    def test_rejoin_key_wins_over_name(self) -> None:
+        self.open_room("ludo", {"turn_timer": 15})
+        friend, begin, _ = self._start_with("ludo", "Ravi")
+        key = friend.welcome["key"]
+        friend.close()
+        drain(self.host, P.NOTICE)
+        back, msgs = self._rejoin("Somebody Else", rejoin=key)
+        self.assertEqual(back["seat"], begin["seat"])
+        self.assertEqual(last_state(msgs)["tokens"], self.server.logic.view_for(begin["seat"])["tokens"])
+        notices = drain(self.host, P.NOTICE, 2)
+        self.assertTrue(any("is back" in m.get("msg", "") for m in notices if m.get("t") == P.NOTICE))
+
+    def test_new_player_can_take_a_left_seat(self) -> None:
+        self.open_room("snakes", {"turn_timer": 15})
+        friend, begin, _ = self._start_with("snakes", "Ravi")
+        friend.close()
+        drain(self.host, P.NOTICE)
+        back, _msgs = self._rejoin("Meera")
+        self.assertEqual(back["seat"], begin["seat"])
+        notices = drain(self.host, P.NOTICE, 2)
+        self.assertTrue(any("took over" in m.get("msg", "") for m in notices if m.get("t") == P.NOTICE))
+        with self.assertRaises(ConnectionError):          # no left seat any more -> still refused
+            self.client("Late")
 
     def test_other_names_still_rejected_mid_game(self) -> None:
         self.open_room("tictactoe", {})

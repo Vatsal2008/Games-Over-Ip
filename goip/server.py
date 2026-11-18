@@ -16,6 +16,7 @@ import hmac
 import itertools
 import logging
 import random
+import re
 import secrets
 import select
 import selectors
@@ -52,12 +53,13 @@ class _Timer:
 
 
 class _RoomSeat:
-    __slots__ = ("index", "kind", "name", "client", "color", "was_name")
+    __slots__ = ("index", "kind", "name", "client", "color", "was_name", "key")
 
     def __init__(self, index: int, kind: str, name: Optional[str], client: Optional[int], color: str) -> None:
         self.index, self.kind, self.name = index, kind, name    # kind: "human" | "open" | "bot"
         self.client, self.color = client, color                 # client id holding the seat
         self.was_name: Optional[str] = None   # human who left mid-game (can reclaim)
+        self.key: Optional[str] = None        # secret rejoin key given to the seat's player
 
     def to_dict(self) -> Dict[str, Any]:
         return {"seat": self.index, "kind": self.kind, "name": self.name, "client": self.client,
@@ -601,20 +603,25 @@ class RoomServer(GameHost):
         token = msg.get("token")
         is_host = (self._host_cid is None and isinstance(token, str)
                    and hmac.compare_digest(token.encode("utf-8"), self.host_token.encode("utf-8")))
+        rejoin = msg.get("rejoin")
+        rejoin = rejoin if isinstance(rejoin, str) and 8 <= len(rejoin) <= 64 else None
         if self.state == "playing":
-            idx = self._find_reclaim(name)
+            idx = None if is_host else self._find_reclaim(name, rejoin)
             if idx is None and not is_host:
                 # Same player back before we noticed the old connection died (Wi-Fi drop, crash):
                 # retire the stale connection so its seat becomes reclaimable right now.
-                stale = self._find_live_player(name, conn)
+                stale = self._find_live_player(name, rejoin, conn)
                 if stale is not None:
                     log.info("client %d replaces stale connection %d (%s)", conn.cid, stale.cid, stale.name)
                     self._drop(stale)
-                    idx = self._find_reclaim(name)
+                    idx = self._find_reclaim(name, rejoin)
+            same_player = idx is not None
+            if idx is None and not is_host:
+                idx = self._vacated_seat()     # anyone may take over a seat a player left
             if idx is None:
                 self._reject(conn, MSG_RUNNING)
             else:
-                self._reclaim(conn, idx)
+                self._reclaim(conn, idx, name, same_player)
             return
         if is_host:
             idx = 0
@@ -627,42 +634,78 @@ class RoomServer(GameHost):
         conn.ready, conn.name, conn.is_host, conn.seat = True, name, is_host, idx
         seat = self._seats[idx]
         seat.kind, seat.name, seat.client, seat.was_name = "human", name, conn.cid, None
+        seat.key = secrets.token_hex(12)
         if is_host:
             self._host_cid = conn.cid
             self.host_name = name
         log.info("client %d joined as %r (seat %d%s)", conn.cid, name, idx, ", host" if is_host else "")
-        self._send(conn, {"t": P.WELCOME, "you": conn.cid, "host": is_host, "room": self._build_room()})
+        self._send(conn, {"t": P.WELCOME, "you": conn.cid, "host": is_host, "room": self._build_room(),
+                          "key": seat.key})
         self._broadcast_lobby(exclude=conn)
 
-    def _find_reclaim(self, name: str) -> Optional[int]:
-        key = name.casefold()
-        for seat in self._seats:
-            if seat.kind == "bot" and seat.client is None and seat.was_name and seat.was_name.casefold() == key:
-                return seat.index
-        return None
+    @staticmethod
+    def _base_name(name: str) -> str:
+        """'TestAri 2' -> 'testari' (duplicate-name suffixes don't stop a rejoin)."""
+        return re.sub(r" \d+$", "", name or "").casefold()
 
-    def _find_live_player(self, name: str, newcomer: _Conn) -> Optional[_Conn]:
-        """A seated, non-host connection already playing under this name (case-insensitive)."""
+    @staticmethod
+    def _key_ok(seat: _RoomSeat, rejoin: Optional[str]) -> bool:
+        return bool(rejoin and seat.key and hmac.compare_digest(rejoin.encode("utf-8"), seat.key.encode("utf-8")))
+
+    def _left_seats(self) -> List[_RoomSeat]:
+        """Seats a human left mid-game (a bot is keeping them warm)."""
+        return [s for s in self._seats if s.kind == "bot" and s.client is None and s.was_name]
+
+    def _find_reclaim(self, name: str, rejoin: Optional[str] = None) -> Optional[int]:
+        """The seat this player left: by rejoin key, then exact name, then name without a ' 2' suffix."""
+        left = self._left_seats()
+        for seat in left:
+            if self._key_ok(seat, rejoin):
+                return seat.index
+        key = name.casefold()
+        for seat in left:
+            if (seat.was_name or "").casefold() == key:
+                return seat.index
+        base = self._base_name(name)
+        matches = [s for s in left if self._base_name(s.was_name or "") == base]
+        return matches[0].index if len(matches) == 1 else None
+
+    def _vacated_seat(self) -> Optional[int]:
+        left = self._left_seats()
+        return left[0].index if left else None
+
+    def _find_live_player(self, name: str, rejoin: Optional[str], newcomer: _Conn) -> Optional[_Conn]:
+        """A seated, non-host connection that is this same player (rejoin key, or exact name)."""
         key = name.casefold()
         for other in self._conns.values():
-            if (other is not newcomer and other.ready and not other.dead and not other.is_host
-                    and other.seat is not None and (other.name or "").casefold() == key):
+            if (other is newcomer or not other.ready or other.dead or other.is_host or other.seat is None
+                    or other.seat >= len(self._seats)):
+                continue
+            if self._key_ok(self._seats[other.seat], rejoin) or (other.name or "").casefold() == key:
                 return other
         return None
 
-    def _reclaim(self, conn: _Conn, idx: int) -> None:
+    def _reclaim(self, conn: _Conn, idx: int, wanted: str = "", same_player: bool = True) -> None:
         logic = self.logic
         seat = self._seats[idx]
-        name = seat.was_name or seat.name or "Player"
+        old = seat.was_name or seat.name or "Player"
+        if same_player:
+            name = old
+        else:
+            seat.name = None
+            name = self._unique_name(wanted or "Player")
         seat.kind, seat.client, seat.name, seat.was_name = "human", conn.cid, name, None
+        seat.key = secrets.token_hex(12)
         conn.ready, conn.name, conn.seat = True, name, idx
         logic.seats[idx].is_bot = False
         logic.seats[idx].name = name
-        log.info("client %d reclaimed seat %d as %r", conn.cid, idx, name)
-        self._send(conn, {"t": P.WELCOME, "you": conn.cid, "host": False, "room": self._build_room()})
+        log.info("client %d %s seat %d as %r", conn.cid, "reclaimed" if same_player else "took over", idx, name)
+        self._send(conn, {"t": P.WELCOME, "you": conn.cid, "host": False, "room": self._build_room(),
+                          "key": seat.key})
         self._send(conn, self._begin_msg(idx))
         self._broadcast({"t": P.SEATS, "seats": self._public_seats()}, exclude=conn)
-        self._broadcast({"t": P.NOTICE, "msg": "%s is back" % name}, exclude=conn)
+        notice = ("%s is back" % name) if same_player else ("%s took over the seat %s left" % (name, old))
+        self._broadcast({"t": P.NOTICE, "msg": notice}, exclude=conn)
         self._game_call(None, lambda: logic.on_seat_changed(idx))
         self._game_call(None, self.push_state)
 

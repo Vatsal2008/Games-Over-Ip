@@ -186,6 +186,10 @@ class App:
     def on_welcome(self, welcome: Dict[str, Any]) -> None:
         self.welcome = welcome
         self.my_id = welcome.get("you")
+        key, client = welcome.get("key"), self.client
+        if isinstance(key, str) and client is not None and self.server is None:
+            self.settings["rejoin"] = "%s:%d|%s" % (client.ip, client.port, key)
+            self.settings.save()
         self.room = welcome.get("room")
         self.is_host = bool(welcome.get("host"))
         self.show(LobbyScreen)
@@ -238,6 +242,13 @@ class App:
             self.toast(str(msg.get("msg") or ""), "bad")
         elif t == P.NOTICE:
             self.toast(str(msg.get("msg") or ""), "info")
+
+    def rejoin_key(self, ip: str, port: int) -> Optional[str]:
+        """The seat key saved from the last time we joined ip:port, if any."""
+        where, _sep, key = self.settings.get("rejoin", "").partition("|")
+        if where != "%s:%d" % (ip, port):
+            return None
+        return key or None
 
     def leave(self, reason: Optional[str] = None, kind: str = "info") -> None:
         client, server = self.client, self.server

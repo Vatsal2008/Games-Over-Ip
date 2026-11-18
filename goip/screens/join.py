@@ -145,7 +145,7 @@ class JoinScreen(Screen):
         self.connecting = True
         self.b_go.set_enabled(False)
         self.b_go.set_text("Connecting…")
-        client = Client(ip, port, name)
+        client = Client(ip, port, name, rejoin=self.app.rejoin_key(ip, port))
         self.app.attach(client, None)
         client.connect_async(timeout=5)
 

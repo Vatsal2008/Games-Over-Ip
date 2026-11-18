@@ -27,6 +27,7 @@ DEFAULTS: Dict[str, Any] = {
     "port": DEFAULT_PORT,
     "game": "ludo",
     "notes": "",
+    "rejoin": "",   # "ip:port|key" of the last room joined (gets your seat back)
 }
 
 

@@ -129,9 +129,13 @@ single `{"t": "_disconnected", "reason": ..., "bye": true}` for that connection 
   token marks the (single) host client. In lobby: take the first open human seat, else reject
   "Room is full". While playing: if a bot seat has `was_name == name` and its owner is gone,
   the player reclaims it (seat back to human, broadcast `seats` + notice "Asha is back", send them
-  `begin` + `state`). If that name still holds a live seat (the old connection died silently, e.g. a
-  Wi-Fi drop), the stale connection is dropped first and the newcomer reclaims the seat at once.
-  Otherwise reject "A game is running. Try again when it ends."
+  `begin` + `state`). Each human seat gets a secret `key` in `welcome`; the app saves it and sends it
+  as `rejoin` in a later `hello`. A returning player is matched by rejoin key, then exact name, then
+  name without a duplicate suffix ("TestAri" matches a seat left as "TestAri 2"). If that player
+  still holds a live seat (the old connection died silently, e.g. a Wi-Fi drop), the stale
+  connection is dropped first and the seat is reclaimed at once ("Ravi is back"). Anyone else takes
+  over the first seat a player left ("Meera took over the seat Ravi left"). Only when no left seat
+  exists: reject "A game is running. Try again when it ends."
 - Names are cleaned with `protocol.clean_name`; duplicates get " 2", " 3" suffixes.
 - Limits: max 8 sockets, `hello` within 5 s, idle timeout 15 s (no bytes at all), send buffer
   cap 1 MiB per client. Breaking a limit disconnects that client only.
